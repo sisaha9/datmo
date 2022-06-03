@@ -32,7 +32,7 @@
 #pragma once
 
 #include "datmo/kalman.hpp"
-#include <Eigen/Core>
+#include <Eigen/Dense>
 
 using namespace Eigen;
 

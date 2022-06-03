@@ -32,7 +32,7 @@
 #pragma once
 #include "rclcpp/rclcpp.hpp"
 #include "datmo/l_shape_tracker.hpp"
-#include <Eigen/Core>
+#include <Eigen/Dense>
 #include <tf2_ros/transform_listener.h>
 #include "visualization_msgs/msg/marker.hpp"
 #include "vision_msgs/msg/detection3_d.hpp"

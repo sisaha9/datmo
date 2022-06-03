@@ -110,8 +110,8 @@ void Cluster::populateTrackingMsgs(const double& dt){
   msg_track_box_kf.results.push_back(hypothesis);
   // msg_track_box_kf.header.stamp = rclcpp::Clock::now();
   msg_track_box_kf.header.frame_id = frame_name;
-  msg_track_box_kf.bbox.center.position.position.x = cx;
-  msg_track_box_kf.bbox.center.position.position.y = cy;
+  msg_track_box_kf.bbox.center.position.x = cx;
+  msg_track_box_kf.bbox.center.position.y = cy;
 
   // TODO: Sid replace this
   // msg_track_box_kf.odom.twist.twist.linear.x = cvx;
@@ -270,7 +270,7 @@ visualization_msgs::msg::Marker Cluster::getBoxModelKFVisualisationMessage() {
   // bb_msg.header.stamp = rclcpp::Clock()::now();
   bb_msg.header.frame_id  = frame_name;
   bb_msg.ns = "box_models_kf";
-  bb_msg.action = visualization_msgs::Marker::ADD;
+  bb_msg.action = visualization_msgs::msg::Marker::ADD;
   bb_msg.pose.orientation.w = 1.0;
   bb_msg.type = visualization_msgs::msg::Marker::LINE_STRIP;
   bb_msg.id = this->id;

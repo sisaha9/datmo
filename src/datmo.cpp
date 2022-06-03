@@ -35,21 +35,21 @@ Datmo::Datmo(const rclcpp::NodeOptions & options) : Node("datmo_node", options)
 {
   RCLCPP_INFO(this->get_logger(), "Starting Detection And Tracking of Moving Objects");
 
-  this->declare_parameter<std::string>("lidar_frame");
+  this->declare_parameter("lidar_frame");
   lidar_frame = this->get_parameter("lidar_frame").as_string();
-  this->declare_parameter<std::string>("world_frame");
+  this->declare_parameter("world_frame");
   world_frame = this->get_parameter("world_frame").as_string();
 
   RCLCPP_INFO(this->get_logger(), "The lidar_frame is: %s and the world frame is: %s", lidar_frame.c_str(), world_frame.c_str());
-  this->declare_parameter<std::string>("world_frame");
+  this->declare_parameter("world_frame");
   world_frame = this->get_parameter("world_frame").as_string();
-  this->declare_parameter<double>("threshold_distance");
+  this->declare_parameter("threshold_distance");
   dth = this->get_parameter("threshold_distance").as_double();
-  this->declare_parameter<int>("max_cluster_size");
+  this->declare_parameter("max_cluster_size");
   max_cluster_size = this->get_parameter("max_cluster_size").as_int();
-  this->declare_parameter<double>("euclidean_distance");
+  this->declare_parameter("euclidean_distance");
   euclidean_distance = this->get_parameter("euclidean_distance").as_double();
-  this->declare_parameter<bool>("pub_markers");
+  this->declare_parameter("pub_markers");
   p_marker_pub = this->get_parameter("pub_markers").as_bool();
 
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());

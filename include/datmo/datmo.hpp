@@ -59,7 +59,7 @@ using namespace std;
 // This node segments the point cloud based on the break-point detector algorithm.
 // This algorithm is based on "L-Shape Model Switching-Based Precise Motion Tracking 
 // of Moving Vehicles Using Laser Scanners.
-class Datmo : rclcpp::Node
+class Datmo : public rclcpp::Node
 {
 public:
   Datmo(const rclcpp::NodeOptions & options);

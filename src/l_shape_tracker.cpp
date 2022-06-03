@@ -29,7 +29,7 @@
 
 /* Author: Konstantinos Konstantinidis */
 
-#include "l_shape_tracker.hpp"
+#include "datmo/l_shape_tracker.hpp"
 
 static inline double normalize_angle_positive(double angle){
   //Normalizes the angle to be 0 to 2*M_PI.
@@ -199,7 +199,6 @@ void LshapeTracker::detectCornerPointSwitchMahalanobis(const double& from, const
   double x_corner_L2 = x_c + L2_box*sin(theta_corner);
   double y_corner_L2 = y_c - L2_box*cos(theta_corner);
   double theta_corner_L2 = normalize_angle(theta_corner + pi/2);
-  ROS_DEBUG_STREAM("simple: "<<theta_corner-theta_new<<", findTurn: "<<findTurn(theta_new,theta_corner));
 
    Eigen::Matrix<double, 5, 5> C;
    C.setZero();

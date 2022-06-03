@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    max_cluster_size: 50
+    lidar_frame: "laser"
+    world_frame: "map"
+    threshold_distance: 0.2
+    euclidean_distance: 0.25
+    pub_markers: true

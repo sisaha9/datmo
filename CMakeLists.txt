@@ -1,25 +1,25 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(datmo)
-add_compile_options(-std=c++11)
-# list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)# required for YCM
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  std_msgs
-  tf
-  nav_msgs
-  sensor_msgs
-  visualization_msgs
-  cmake_modules REQUIRED
-  message_generation
-)
-find_package(Eigen REQUIRED)
+# Default to C99.
+if(NOT CMAKE_C_STANDARD)
+  set(CMAKE_C_STANDARD 99)
+endif()
+
+# Default to C++17.
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# Require that dependencies from package.xml be available.
+find_package(ament_cmake_auto REQUIRED)
+find_package(eigen3_cmake_module REQUIRED)
+find_package(Eigen3 REQUIRED)
 find_package(OpenMP REQUIRED)
-
 #MultiThreading Library
 OPTION (USE_OpenMP "Use OpenMP" OFF)
 IF(USE_OpenMP)
@@ -28,29 +28,30 @@ IF(USE_OpenMP)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
   ENDIF()
 ENDIF()
-
-add_message_files(
-  FILES
-  Track.msg
-  TrackArray.msg
+ament_auto_find_build_dependencies(REQUIRED
+  ${${PROJECT_NAME}_BUILD_DEPENDS}
+  ${${PROJECT_NAME}_BUILDTOOL_DEPENDS}
 )
 
-generate_messages(
-  DEPENDENCIES
-  nav_msgs
-  std_msgs
+set(${PROJECT_NAME}_SRC
+  src/datmo.cpp
+  src/cluster.cpp
+  src/l_shape_tracker.cpp
+  src/kalman.cpp
+)
+# Create this project as an executable.
+ament_auto_add_executable(${PROJECT_NAME}_node_exe
+  ${${PROJECT_NAME}_SRC}
 )
 
-catkin_package(
- CATKIN_DEPENDS roscpp std_msgs message_runtime
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  set(ament_cmake_copyright_FOUND TRUE)
+  ament_lint_auto_find_test_dependencies()
+endif()
+
+# Create & install ament package.
+ament_auto_package(INSTALL_TO_SHARE
+  launch
+  param
 )
-
-
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-  ${Eigen_INCLUDE_DIRS}
-)
-
-add_executable(datmo src/main.cpp src/l_shape_tracker.cpp src/kalman-cpp/kalman.cpp src/datmo.cpp src/cluster.cpp)
-add_dependencies(datmo ${catkin_EXPORTED_TARGETS} datmo_generate_messages_cpp)
-target_link_libraries(datmo ${catkin_LIBRARIES})

@@ -29,50 +29,73 @@
 
 /* Author: Konstantinos Konstantinidis */
 
-#include "datmo.hpp"
+#include "datmo/datmo.hpp"
 
-Datmo::Datmo(){
-  ros::NodeHandle n; 
-  ros::NodeHandle n_private("~");
-  ROS_INFO("Starting Detection And Tracking of Moving Objects");
+Datmo::Datmo() : Node("datmo_node")
+{
+  RCLCPP_INFO(this->get_logger(), "Starting Detection And Tracking of Moving Objects");
 
-  n_private.param("lidar_frame", lidar_frame, string("base_link"));
-  n_private.param("world_frame", world_frame, string("map"));
-  ROS_INFO("The lidar_frame is: %s and the world frame is: %s", lidar_frame.c_str(), world_frame.c_str());
-  n_private.param("threshold_distance", dth, 0.2);
-  n_private.param("max_cluster_size", max_cluster_size, 360);
-  n_private.param("euclidean_distance", euclidean_distance, 0.25);
-  n_private.param("pub_markers", p_marker_pub, false);
+  this->declare_parameter<std::string>("lidar_frame");
+  lidar_frame = this->get_parameter("lidar_frame").as_string();
+  this->declare_parameter<std::string>("world_frame");
+  world_frame = this->get_parameter("world_frame").as_string();
 
-  pub_tracks_box_kf     = n.advertise<datmo::TrackArray>("datmo/box_kf", 10);
-  pub_marker_array   = n.advertise<visualization_msgs::MarkerArray>("datmo/marker_array", 10);
-  sub_scan = n.subscribe("/scan", 1, &Datmo::callback, this);
+  RCLCPP_INFO(this->get_logger(), "The lidar_frame is: %s and the world frame is: %s", lidar_frame.c_str(), world_frame.c_str());
+  this->declare_parameter<std::string>("world_frame");
+  world_frame = this->get_parameter("world_frame").as_string();
+  this->declare_parameter<double>("threshold_distance");
+  dth = this->get_parameter("threshold_distance").as_double();
+  this->declare_parameter<int>("max_cluster_size");
+  max_cluster_size = this->get_parameter("max_cluster_size").as_int();
+  this->declare_parameter<double>("euclidean_distance");
+  euclidean_distance = this->get_parameter("euclidean_distance").as_double();
+  this->declare_parameter<bool>("pub_markers");
+  p_marker_pub = this->get_parameter("pub_markers").as_bool();
 
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  tf2_listener = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+  pub_tracks_box_kf = this->create_publisher<vision_msgs::msg::Detection3DArray>(
+    "datmo_box",
+    rclcpp::SensorDataQoS()
+  );
+
+  pub_marker_array = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+    "marker_array",
+    rclcpp::SensorDataQoS()
+  );
+  
+  sub_scan = this->create_subscription<sensor_msgs::msg::LaserScan>(
+    "scan",
+    rclcpp::SensorDataQoS(),
+    std::bind(&Datmo::callback, this, std::placeholders::_1)
+  );
 }
 
-Datmo::~Datmo(){
-}
-void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
+void Datmo::callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_in){
 
   // delete all Markers 
-  visualization_msgs::Marker marker;
-  visualization_msgs::MarkerArray markera;
+  visualization_msgs::msg::Marker marker;
+  visualization_msgs::msg::MarkerArray markera;
   marker.action =3;
   markera.markers.push_back(marker);
-  pub_marker_array.publish(markera);
+  pub_marker_array->publish(markera);
 
   // Only if there is a transform between the world and lidar frame continue
-  if(tf_listener.canTransform(world_frame, lidar_frame, ros::Time())){
+  if(tf_buffer_->canTransform(world_frame, lidar_frame, tf2::TimePointZero)){
 
     //Find position of ego vehicle in world frame, so it can be fed through to the cluster objects
-    tf::StampedTransform ego_pose;
-    tf_listener.lookupTransform(world_frame, lidar_frame, ros::Time(0), ego_pose);
+    geometry_msgs::msg::TransformStamped ego_pose;
+    ego_pose = tf_buffer_->lookupTransform(world_frame, lidar_frame, tf2::TimePointZero);
     
     //TODO implement varying calculation of dt
     dt = 0.08;
 
-    if (time > ros::Time::now()){clusters.clear();}
-    time = ros::Time::now();
+    if (time > this->now())
+    {
+      clusters.clear();
+    }
+    time = this->now();
     auto start = chrono::steady_clock::now();
 
     vector<pointList> point_clusters_not_transformed;
@@ -164,11 +187,11 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
     }
     
     //Visualizations and msg publications
-    visualization_msgs::MarkerArray marker_array;
-    datmo::TrackArray track_array_box_kf; 
+    visualization_msgs::msg::MarkerArray marker_array;
+    vision_msgs::msg::Detection3DArray track_array_box_kf; 
     for (unsigned int i =0; i<clusters.size();i++){
 
-      track_array_box_kf.tracks.push_back(clusters[i].msg_track_box_kf);
+      track_array_box_kf.detections.push_back(clusters[i].msg_track_box_kf);
      
       if (p_marker_pub){
         marker_array.markers.push_back(clusters[i].getClosestCornerPointVisualisationMessage());
@@ -186,26 +209,26 @@ void Datmo::callback(const sensor_msgs::LaserScan::ConstPtr& scan_in){
       }; 
     }
 
-    pub_marker_array.publish(marker_array);
-    pub_tracks_box_kf.publish(track_array_box_kf);
+    pub_marker_array->publish(marker_array);
+    pub_tracks_box_kf->publish(track_array_box_kf);
     visualiseGroupedPoints(point_clusters);
     
   }
   else{ //If the tf is not possible init all states at 0
-    ROS_WARN_DELAYED_THROTTLE(1 ,"No transform could be found between %s and %s", lidar_frame.c_str(), world_frame.c_str());
+    RCLCPP_INFO(this->get_logger() ,"No transform could be found between %s and %s", lidar_frame.c_str(), world_frame.c_str());
   };
 }
 void Datmo::visualiseGroupedPoints(const vector<pointList>& point_clusters){
   //Publishing the clusters with different colors
-  visualization_msgs::MarkerArray marker_array;
+  visualization_msgs::msg::MarkerArray marker_array;
   //Populate grouped points message
-  visualization_msgs::Marker gpoints;
+  visualization_msgs::msg::Marker gpoints;
   gpoints.header.frame_id = world_frame;
-  gpoints.header.stamp = ros::Time::now();
+  gpoints.header.stamp = this->now();
   gpoints.ns = "clustered_points";
-  gpoints.action = visualization_msgs::Marker::ADD;
+  gpoints.action = visualization_msgs::msg::Marker::ADD;
   gpoints.pose.orientation.w = 1.0;
-  gpoints.type = visualization_msgs::Marker::POINTS;
+  gpoints.type = visualization_msgs::msg::Marker::POINTS;
   // POINTS markers use x and y scale for width/height respectively
   gpoints.scale.x = 0.04;
   gpoints.scale.y = 0.04;
@@ -219,7 +242,7 @@ void Datmo::visualiseGroupedPoints(const vector<pointList>& point_clusters){
     gpoints.color.a = 1.0;
     //gpoints.lifetime = ros::Duration(0.08);
     for(unsigned int j=0; j<point_clusters[i].size(); ++j){
-      geometry_msgs::Point p;
+      geometry_msgs::msg::Point p;
       p.x = point_clusters[i][j].first;
       p.y = point_clusters[i][j].second;
       p.z = 0;
@@ -228,15 +251,12 @@ void Datmo::visualiseGroupedPoints(const vector<pointList>& point_clusters){
     marker_array.markers.push_back(gpoints);
     gpoints.points.clear();
   }
-  pub_marker_array.publish(marker_array);
+  pub_marker_array->publish(marker_array);
 
 }
-void Datmo::Clustering(const sensor_msgs::LaserScan::ConstPtr& scan_in, vector<pointList> &clusters){
+void Datmo::Clustering(const sensor_msgs::msg::LaserScan::ConstPtr scan_in, vector<pointList> &clusters){
   scan = *scan_in;
-
-
   int cpoints = 0;
-  
   //Find the number of non inf laser scan values and save them in c_points
   for (unsigned int i = 0; i < scan.ranges.size(); ++i){
     if(isinf(scan.ranges[i]) == 0){
@@ -352,16 +372,33 @@ void Datmo::transformPointList(const pointList& in, pointList& out){
   //transformPoint function
   //There is not try catch block because it is supposed to be already encompassed into one
   
-  geometry_msgs::PointStamped point_in, point_out;
+  geometry_msgs::msg::PointStamped point_in, point_out;
   Point point; 
   point_in.header.frame_id = lidar_frame;
-  point_in.header.stamp = ros::Time(0);
+  point_in.header.stamp = this->now();
   for (unsigned int i = 0; i < in.size(); ++i) {
     point_in.point.x = in[i].first;
     point_in.point.y = in[i].second;
-    tf_listener.transformPoint(world_frame, point_in , point_out);
+    point_out = point_in;
+    if(tf_buffer_->canTransform(lidar_frame, world_frame, tf2::TimePointZero))
+    {
+      //Find position of ego vehicle in world frame, so it can be fed through to the cluster objects
+      geometry_msgs::msg::TransformStamped ego_pose;
+      ego_pose = tf_buffer_->lookupTransform(lidar_frame, world_frame, tf2::TimePointZero);
+      tf2::doTransform(point_out, point_out, ego_pose);
+    }
     point.first = point_out.point.x;
     point.second= point_out.point.y;
     out.push_back(point);
   }
+}
+
+int main(int argc, char * argv[])
+{
+  rclcpp::init(argc, argv);
+  rclcpp::NodeOptions options{};
+  auto node = std::make_shared<Datmo>(options);
+  rclcpp::spin(node);
+  rclcpp::shutdown();
+  return 0;
 }

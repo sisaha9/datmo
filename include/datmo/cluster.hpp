@@ -30,14 +30,17 @@
 /* Author: Konstantinos Konstantinidis */
 
 #pragma once
-#include <ros/ros.h>
-#include "l_shape_tracker.hpp"
-#include <Eigen/Dense>
-#include <tf/transform_listener.h>
-#include <visualization_msgs/Marker.h>
-#include "datmo/Track.h"
+#include "rclcpp/rclcpp.hpp"
+#include "datmo/l_shape_tracker.hpp"
+#include <Eigen/Core>
+#include <tf2_ros/transform_listener.h>
+#include "visualization_msgs/msg/marker.hpp"
+#include "vision_msgs/msg/detection3_d.hpp"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_ros/buffer.h"
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include "geometry_msgs/msg/transform_stamped.hpp"
 #include <vector>
 
 using namespace Eigen;
@@ -48,32 +51,32 @@ typedef std::vector<Point> pointList;
 class Cluster {
 public:
 
-  Cluster(unsigned long int id, const pointList&, const double&, const std::string&, const tf::Transform& ego_pose);
+  Cluster(unsigned long int id, const pointList&, const double&, const std::string&, const geometry_msgs::msg::TransformStamped &ego_pose);
 
 
   std::string frame_name;
   Point ego_coordinates;
 
-  datmo::Track msg_track_box_kf;
+  vision_msgs::msg::Detection3D msg_track_box_kf;
 
   unsigned long int id; //identifier for the cluster 
   unsigned long int age; //age of the cluster 
   float r, g, b, a; //color of the cluster
 
-  visualization_msgs::Marker getBoundingBoxCenterVisualisationMessage();
-  visualization_msgs::Marker getClosestCornerPointVisualisationMessage();
-  visualization_msgs::Marker getClusterVisualisationMessage();
-  visualization_msgs::Marker getLineVisualisationMessage();
-  visualization_msgs::Marker getArrowVisualisationMessage();
-  visualization_msgs::Marker getThetaL2VisualisationMessage();
-  visualization_msgs::Marker getThetaL1VisualisationMessage();
-  visualization_msgs::Marker getThetaBoxVisualisationMessage();
-  visualization_msgs::Marker getBoundingBoxVisualisationMessage();
-  visualization_msgs::Marker getBoxModelKFVisualisationMessage();
-  visualization_msgs::Marker getLShapeVisualisationMessage();
-  visualization_msgs::Marker getBoxSolidVisualisationMessage();
+  visualization_msgs::msg::Marker getBoundingBoxCenterVisualisationMessage();
+  visualization_msgs::msg::Marker getClosestCornerPointVisualisationMessage();
+  visualization_msgs::msg::Marker getClusterVisualisationMessage();
+  visualization_msgs::msg::Marker getLineVisualisationMessage();
+  visualization_msgs::msg::Marker getArrowVisualisationMessage();
+  visualization_msgs::msg::Marker getThetaL2VisualisationMessage();
+  visualization_msgs::msg::Marker getThetaL1VisualisationMessage();
+  visualization_msgs::msg::Marker getThetaBoxVisualisationMessage();
+  visualization_msgs::msg::Marker getBoundingBoxVisualisationMessage();
+  visualization_msgs::msg::Marker getBoxModelKFVisualisationMessage();
+  visualization_msgs::msg::Marker getLShapeVisualisationMessage();
+  visualization_msgs::msg::Marker getBoxSolidVisualisationMessage();
 
-  void update(const pointList&, const double dt, const tf::Transform& ego_pose);
+  void update(const pointList&, const double dt, const geometry_msgs::msg::TransformStamped &ego_pose);
 
   std::pair<double, double> mean() { return mean_values; }; //Return mean of cluster.
   double meanX() { return mean_values.first; };
@@ -100,7 +103,7 @@ private:
   Point closest_corner_point;
   
 
-  visualization_msgs::Marker boxcenter_marker_;
+  visualization_msgs::msg::Marker boxcenter_marker_;
   void populateTrackingMsgs(const double& dt);
   void calcMean(const pointList& ); //Find the mean value of the cluster
   void rectangleFitting(const pointList& ); //Search-Based Rectangle Fitting 

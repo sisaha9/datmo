@@ -31,9 +31,8 @@
 
 #pragma once
 
-#include "kalman-cpp/kalman.hpp"
-#include <Eigen/Dense>
-#include <ros/console.h>
+#include "datmo/kalman.hpp"
+#include <Eigen/Core>
 
 using namespace Eigen;
 

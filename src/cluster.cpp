@@ -29,7 +29,8 @@
 
 /* Author: Konstantinos Konstantinidis */
 
-#include "cluster.hpp"
+#include "vision_msgs/msg/object_hypothesis_with_pose.hpp"
+#include "datmo/cluster.hpp"
 
  
 static inline double normalize_angle_positive(double angle){
@@ -54,7 +55,7 @@ static inline double shortest_angular_distance(double from, double to){
   return normalize_angle(to-from);
 }
 
-Cluster::Cluster(unsigned long int id, const pointList& new_points, const double& dt, const std::string& world_frame, const tf::Transform& ego_pose){
+Cluster::Cluster(unsigned long int id, const pointList& new_points, const double& dt, const std::string& world_frame, const geometry_msgs::msg::TransformStamped & ego_pose){
 
   this->id = id;
   this->r = rand() / double(RAND_MAX);
@@ -66,8 +67,8 @@ Cluster::Cluster(unsigned long int id, const pointList& new_points, const double
 
   new_cluster = new_points;
 
-  ego_coordinates.first = ego_pose.getOrigin().getX();
-  ego_coordinates.second= ego_pose.getOrigin().getY();
+  ego_coordinates.first = ego_pose.transform.translation.x;
+  ego_coordinates.second= ego_pose.transform.translation.y;
 
 
   calcMean(new_points);
@@ -81,10 +82,10 @@ Cluster::Cluster(unsigned long int id, const pointList& new_points, const double
   populateTrackingMsgs(dt);
 }
 
-void Cluster::update(const pointList& new_points, const double dt, const tf::Transform& ego_pose) {
+void Cluster::update(const pointList& new_points, const double dt, const geometry_msgs::msg::TransformStamped & ego_pose) {
 
-  ego_coordinates.first = ego_pose.getOrigin().getX();
-  ego_coordinates.second= ego_pose.getOrigin().getY();
+  ego_coordinates.first = ego_pose.transform.translation.x;
+  ego_coordinates.second= ego_pose.transform.translation.y;
 
   age++;
   previous_mean_values = mean_values;
@@ -93,7 +94,7 @@ void Cluster::update(const pointList& new_points, const double dt, const tf::Tra
   calcMean(new_points);
   rectangleFitting(new_points);
 
-    Lshape.update(thetaL1, closest_corner_point.first, closest_corner_point.second, L1, L2, dt, new_points.size());
+  Lshape.update(thetaL1, closest_corner_point.first, closest_corner_point.second, L1, L2, dt, new_points.size());
 
   Lshape.BoxModel(cx, cy, cvx, cvy, th, psi, comega, L1_box, L2_box, length_box, width_box);
 
@@ -104,19 +105,25 @@ void Cluster::update(const pointList& new_points, const double dt, const tf::Tra
 void Cluster::populateTrackingMsgs(const double& dt){
   // This function populates the datmo/Tracks msgs.
 
-  msg_track_box_kf.id = this->id;
-  msg_track_box_kf.odom.header.stamp = ros::Time::now();
-  msg_track_box_kf.odom.header.frame_id = frame_name;
-  msg_track_box_kf.odom.pose.pose.position.x = cx;
-  msg_track_box_kf.odom.pose.pose.position.y = cy;
-  msg_track_box_kf.odom.twist.twist.linear.x = cvx;
-  msg_track_box_kf.odom.twist.twist.linear.y = cvy;
-  msg_track_box_kf.length = length_box;
-  msg_track_box_kf.width  = width_box;
+  vision_msgs::msg::ObjectHypothesisWithPose hypothesis;
+  hypothesis.id = static_cast<std::string>(this->id);
+  msg_track_box_kf.results.push_back(hypothesis);
+  msg_track_box_kf.header.stamp = rclcpp::Clock::now();
+  msg_track_box_kf.header.frame_id = frame_name;
+  msg_track_box_kf.bbox.center.position.position.x = cx;
+  msg_track_box_kf.bbox.center.position.position.y = cy;
+
+  // TODO: Sid replace this
+  // msg_track_box_kf.odom.twist.twist.linear.x = cvx;
+  // msg_track_box_kf.odom.twist.twist.linear.y = cvy;
+  msg_track_box_kf.bbox.size.x = length_box;
+  msg_track_box_kf.bbox.size.y  = width_box;
 
   quaternion.setRPY(0, 0, psi);
-  msg_track_box_kf.odom.pose.pose.orientation = tf2::toMsg(quaternion);
-  msg_track_box_kf.odom.twist.twist.angular.z   = comega;
+
+  //TODO: Sid replace this
+  // msg_track_box_kf.odom.pose.pose.orientation = tf2::toMsg(quaternion);
+  // msg_track_box_kf.odom.twist.twist.angular.z   = comega;
 
 }
 
@@ -227,15 +234,15 @@ void Cluster::rectangleFitting(const pointList& new_cluster){
   thetaL2 = atan2((l1l2[2].second - l1l2[1].second),(l1l2[2].first - l1l2[1].first)); 
   
 } 
-visualization_msgs::Marker Cluster::getBoundingBoxVisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getBoundingBoxVisualisationMessage() {
 
-  visualization_msgs::Marker bb_msg;
-  bb_msg.header.stamp = ros::Time::now();
+  visualization_msgs::msg::Marker bb_msg;
+  bb_msg.header.stamp = rclcpp::Clock()::now();
   bb_msg.header.frame_id  = frame_name;
   bb_msg.ns = "bounding_boxes";
-  bb_msg.action = visualization_msgs::Marker::ADD;
+  bb_msg.action = visualization_msgs::msg::Marker::ADD;
   bb_msg.pose.orientation.w = 1.0;
-  bb_msg.type = visualization_msgs::Marker::LINE_STRIP;
+  bb_msg.type = visualization_msgs::msg::Marker::LINE_STRIP;
   bb_msg.id = this->id;
   //bb_msg.scale.x = 0.3; //line width
   bb_msg.scale.x = 0.008; //line width
@@ -244,7 +251,7 @@ visualization_msgs::Marker Cluster::getBoundingBoxVisualisationMessage() {
   bb_msg.color.r = this->r;
   bb_msg.color.a = 1.0;
 
-  geometry_msgs::Point p;
+  geometry_msgs::msg::Point p;
   for (unsigned int i = 0; i < 4; ++i) {
     p.x = corner_list[i].first;  
     p.y = corner_list[i].second;  
@@ -256,16 +263,16 @@ visualization_msgs::Marker Cluster::getBoundingBoxVisualisationMessage() {
 
   return bb_msg;
 }
-visualization_msgs::Marker Cluster::getBoxModelKFVisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getBoxModelKFVisualisationMessage() {
   
-  visualization_msgs::Marker bb_msg;
+  visualization_msgs::msg::Marker bb_msg;
 
-  bb_msg.header.stamp = ros::Time::now();
+  bb_msg.header.stamp = rclcpp::Clock()::now();
   bb_msg.header.frame_id  = frame_name;
   bb_msg.ns = "box_models_kf";
   bb_msg.action = visualization_msgs::Marker::ADD;
   bb_msg.pose.orientation.w = 1.0;
-  bb_msg.type = visualization_msgs::Marker::LINE_STRIP;
+  bb_msg.type = visualization_msgs::msg::Marker::LINE_STRIP;
   bb_msg.id = this->id;
   bb_msg.scale.x = 0.02; //line width
   bb_msg.color.g = g;
@@ -273,7 +280,7 @@ visualization_msgs::Marker Cluster::getBoxModelKFVisualisationMessage() {
   bb_msg.color.r = r;
   bb_msg.color.a = a;
 
-  geometry_msgs::Point p;
+  geometry_msgs::msg::Point p;
   double x = L1_box/2;
   double y = L2_box/2;
   p.x = cx + x*cos(th) - y*sin(th);
@@ -304,16 +311,16 @@ visualization_msgs::Marker Cluster::getBoxModelKFVisualisationMessage() {
   
 }
 
-visualization_msgs::Marker Cluster::getLShapeVisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getLShapeVisualisationMessage() {
 
-  visualization_msgs::Marker l1l2_msg;
+  visualization_msgs::msg::Marker l1l2_msg;
 
-  l1l2_msg.header.stamp = ros::Time::now();
+  l1l2_msg.header.stamp = rclcpp::Clock()::now();
   l1l2_msg.header.frame_id  = frame_name;
   l1l2_msg.ns = "L-Shapes";
-  l1l2_msg.action = visualization_msgs::Marker::ADD;
+  l1l2_msg.action = visualization_msgs::msg::Marker::ADD;
   l1l2_msg.pose.orientation.w = 1.0;
-  l1l2_msg.type = visualization_msgs::Marker::LINE_STRIP;
+  l1l2_msg.type = visualization_msgs::msg::Marker::LINE_STRIP;
   l1l2_msg.id = this->id;
   //l1l2_msg.scale.x = 0.3; //line width
   l1l2_msg.scale.x = 0.1; //line width
@@ -330,7 +337,7 @@ visualization_msgs::Marker Cluster::getLShapeVisualisationMessage() {
     l1l2_msg.color.b = 0;
   }
 
-  geometry_msgs::Point p;
+  geometry_msgs::msg::Point p;
   for (unsigned int i = 0; i < 3; ++i) {
     p.x = l1l2[i].first;
     p.y = l1l2[i].second;
@@ -397,13 +404,13 @@ double Cluster::closenessCriterion(const VectorXd& C1, const VectorXd& C2, const
  
   return b; 
 }
-visualization_msgs::Marker Cluster::getThetaBoxVisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getThetaBoxVisualisationMessage() {
 
-  visualization_msgs::Marker arrow_marker;
-  arrow_marker.type            = visualization_msgs::Marker::ARROW;
-  arrow_marker.header.stamp    = ros::Time::now();
+  visualization_msgs::msg::Marker arrow_marker;
+  arrow_marker.type            = visualization_msgs::msg::Marker::ARROW;
+  arrow_marker.header.stamp    = rclcpp::Clock()::now();
   arrow_marker.ns              = "thetaBox";
-  arrow_marker.action          = visualization_msgs::Marker::ADD;
+  arrow_marker.action          = visualization_msgs::msg::Marker::ADD;
   arrow_marker.color.a         = 0.5;
   arrow_marker.color.g         = this->g;
   arrow_marker.color.b         = this->b;
@@ -424,14 +431,14 @@ visualization_msgs::Marker Cluster::getThetaBoxVisualisationMessage() {
  
   return arrow_marker;
 }
-visualization_msgs::Marker Cluster::getThetaL1VisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getThetaL1VisualisationMessage() {
 
-  visualization_msgs::Marker arrow_marker;
+  visualization_msgs::msg::Marker arrow_marker;
   arrow_marker.header.frame_id = frame_name;
-  arrow_marker.type            = visualization_msgs::Marker::ARROW;
-  arrow_marker.header.stamp    = ros::Time::now();
+  arrow_marker.type            = visualization_msgs::msg::Marker::ARROW;
+  arrow_marker.header.stamp    = rclcpp::Clock()::now();
   arrow_marker.ns              = "thetaL1";
-  arrow_marker.action          = visualization_msgs::Marker::ADD;
+  arrow_marker.action          = visualization_msgs::msg::Marker::ADD;
   arrow_marker.color.a         = 1.0;
   arrow_marker.color.r         = 1;
   arrow_marker.color.g         = 0;
@@ -451,14 +458,14 @@ visualization_msgs::Marker Cluster::getThetaL1VisualisationMessage() {
  
   return arrow_marker;
 }
-visualization_msgs::Marker Cluster::getThetaL2VisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getThetaL2VisualisationMessage() {
 
-  visualization_msgs::Marker arrow_marker;
-  arrow_marker.type              = visualization_msgs::Marker::ARROW;
+  visualization_msgs::msg::Marker arrow_marker;
+  arrow_marker.type              = visualization_msgs::msg::Marker::ARROW;
   //arrow_marker.header.frame_id = frame_name;
-  arrow_marker.header.stamp      = ros::Time::now();
+  arrow_marker.header.stamp      = rclcpp::Clock()::now();
   arrow_marker.ns                = "thetaL2";
-  arrow_marker.action            = visualization_msgs::Marker::ADD;
+  arrow_marker.action            = visualization_msgs::msg::Marker::ADD;
   arrow_marker.color.a           = 1.0;
   arrow_marker.color.g         = 1;
   arrow_marker.color.g           = 0;
@@ -478,15 +485,15 @@ visualization_msgs::Marker Cluster::getThetaL2VisualisationMessage() {
   return arrow_marker;
 }
 
-visualization_msgs::Marker Cluster::getArrowVisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getArrowVisualisationMessage() {
 
-  visualization_msgs::Marker arrow_marker;
-  arrow_marker.type = visualization_msgs::Marker::ARROW;
+  visualization_msgs::msg::Marker arrow_marker;
+  arrow_marker.type = visualization_msgs::msg::Marker::ARROW;
   //arrow_marker.header.frame_id = frame_name;
   arrow_marker.header.frame_id = frame_name;
-  arrow_marker.header.stamp = ros::Time::now();
+  arrow_marker.header.stamp = rclcpp::Clock()::now();
   arrow_marker.ns = "velocities";
-  arrow_marker.action = visualization_msgs::Marker::ADD;
+  arrow_marker.action = visualization_msgs::msg::Marker::ADD;
   arrow_marker.color.a = 1.0;
   arrow_marker.color.g = g;
   arrow_marker.color.b = b;
@@ -495,7 +502,7 @@ visualization_msgs::Marker Cluster::getArrowVisualisationMessage() {
   arrow_marker.scale.x = 0.05;    //Shaft diameter of the arrow
   arrow_marker.scale.y = 0.1;    //Head  diameter of the arrow
 
-  geometry_msgs::Point p;
+  geometry_msgs::msg::Point p;
   p.x = cx; 
   p.y = cy; 
   p.z = 0;
@@ -507,14 +514,14 @@ visualization_msgs::Marker Cluster::getArrowVisualisationMessage() {
   arrow_marker.points.push_back(p);
   return arrow_marker;
 }
- visualization_msgs::Marker Cluster::getClosestCornerPointVisualisationMessage() {
+ visualization_msgs::msg::Marker Cluster::getClosestCornerPointVisualisationMessage() {
 
-  visualization_msgs::Marker corner_msg;
-  corner_msg.type = visualization_msgs::Marker::POINTS;
+  visualization_msgs::msg::Marker corner_msg;
+  corner_msg.type = visualization_msgs::msg::Marker::POINTS;
   corner_msg.header.frame_id = frame_name;
-  corner_msg.header.stamp = ros::Time::now();
+  corner_msg.header.stamp = rclcpp::Clock()::now();
   corner_msg.ns = "closest_corner";
-  corner_msg.action = visualization_msgs::Marker::ADD;
+  corner_msg.action = visualization_msgs::msg::Marker::ADD;
   corner_msg.pose.orientation.w = 1.0;    
   //corner_msg.scale.x = 0.3;
   //corner_msg.scale.y = 0.3;  
@@ -526,7 +533,7 @@ visualization_msgs::Marker Cluster::getArrowVisualisationMessage() {
   corner_msg.color.r = 0.0;
   corner_msg.id = this->id;
 
-  geometry_msgs::Point p;
+  geometry_msgs::msg::Point p;
   p.x = closest_corner_point.first; 
   p.y = closest_corner_point.second;
   p.z = 0;
@@ -534,14 +541,14 @@ visualization_msgs::Marker Cluster::getArrowVisualisationMessage() {
 
   return corner_msg;
 }
- visualization_msgs::Marker Cluster::getBoundingBoxCenterVisualisationMessage() {
+ visualization_msgs::msg::Marker Cluster::getBoundingBoxCenterVisualisationMessage() {
 
-    visualization_msgs::Marker boxcenter_marker;
-    boxcenter_marker.type = visualization_msgs::Marker::POINTS;
+    visualization_msgs::msg::Marker boxcenter_marker;
+    boxcenter_marker.type = visualization_msgs::msg::Marker::POINTS;
     boxcenter_marker.header.frame_id = frame_name;
-    boxcenter_marker.header.stamp = ros::Time::now();
+    boxcenter_marker.header.stamp = rclcpp::Clock()::now();
     boxcenter_marker.ns = "bounding_box_center";
-    boxcenter_marker.action = visualization_msgs::Marker::ADD;
+    boxcenter_marker.action = visualization_msgs::msg::Marker::ADD;
     boxcenter_marker.pose.orientation.w = 1.0;    
     boxcenter_marker.scale.x = 0.1;
     boxcenter_marker.scale.y = 0.1;  
@@ -551,22 +558,22 @@ visualization_msgs::Marker Cluster::getArrowVisualisationMessage() {
     boxcenter_marker.color.b = 0;
     boxcenter_marker.id = this->id;
     
-    geometry_msgs::Point p;
+    geometry_msgs::msg::Point p;
     p.x = cx;
     p.y = cy;
     boxcenter_marker.points.push_back(p);
 
   return boxcenter_marker;
 }
-visualization_msgs::Marker Cluster::getClusterVisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getClusterVisualisationMessage() {
 
-  visualization_msgs::Marker cluster_vmsg;
+  visualization_msgs::msg::Marker cluster_vmsg;
   cluster_vmsg.header.frame_id  = frame_name;
-  cluster_vmsg.header.stamp = ros::Time::now();
+  cluster_vmsg.header.stamp = rclcpp::Clock()::now();
   cluster_vmsg.ns = "clusters";
-  cluster_vmsg.action = visualization_msgs::Marker::ADD;
+  cluster_vmsg.action = visualization_msgs::msg::Marker::ADD;
   cluster_vmsg.pose.orientation.w = 1.0;
-  cluster_vmsg.type = visualization_msgs::Marker::POINTS;
+  cluster_vmsg.type = visualization_msgs::msg::Marker::POINTS;
   cluster_vmsg.scale.x = 0.02;
   cluster_vmsg.scale.y = 0.02;
   cluster_vmsg.id = this->id;
@@ -577,7 +584,7 @@ visualization_msgs::Marker Cluster::getClusterVisualisationMessage() {
   cluster_vmsg.color.a = 1.0;
 
 
-  geometry_msgs::Point p;
+  geometry_msgs::msg::Point p;
  
   for(unsigned int j=0; j<new_cluster.size(); ++j){
     p.x = new_cluster[j].first;
@@ -589,16 +596,16 @@ visualization_msgs::Marker Cluster::getClusterVisualisationMessage() {
   return cluster_vmsg;
 }
 
-visualization_msgs::Marker Cluster::getBoxSolidVisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getBoxSolidVisualisationMessage() {
 
 
-  visualization_msgs::Marker marker;
+  visualization_msgs::msg::Marker marker;
   marker.header.frame_id = frame_name;
-  marker.header.stamp = ros::Time::now();
+  marker.header.stamp = rclcpp::Clock()::now();
   marker.ns = "boxes";
   marker.id = this->id;
-  marker.type = visualization_msgs::Marker::CUBE;
-  marker.action = visualization_msgs::Marker::ADD;
+  marker.type = visualization_msgs::msg::Marker::CUBE;
+  marker.action = visualization_msgs::msg::Marker::ADD;
 
   marker.pose.position.x = cx;
   marker.pose.position.y = cy;
@@ -619,16 +626,16 @@ visualization_msgs::Marker Cluster::getBoxSolidVisualisationMessage() {
   return marker;
 }
 
-visualization_msgs::Marker Cluster::getLineVisualisationMessage() {
+visualization_msgs::msg::Marker Cluster::getLineVisualisationMessage() {
 
-  visualization_msgs::Marker line_msg;
+  visualization_msgs::msg::Marker line_msg;
 
-  line_msg.header.stamp = ros::Time::now();
+  line_msg.header.stamp = rclcpp::Clock()::now();
   line_msg.header.frame_id  = frame_name;
   line_msg.ns = "lines";
-  line_msg.action = visualization_msgs::Marker::ADD;
+  line_msg.action = visualization_msgs::msg::Marker::ADD;
   line_msg.pose.orientation.w = 1.0;
-  line_msg.type = visualization_msgs::Marker::LINE_STRIP;
+  line_msg.type = visualization_msgs::msg::Marker::LINE_STRIP;
   line_msg.id = this->id;
   line_msg.scale.x = 0.1; //line width
   line_msg.color.g = this->g;
@@ -643,7 +650,7 @@ visualization_msgs::Marker Cluster::getLineVisualisationMessage() {
 
   std::vector<Point> pointListOut;
   Cluster::ramerDouglasPeucker(new_cluster, 0.1, pointListOut);
-  geometry_msgs::Point p;
+  geometry_msgs::msg::Point p;
   for(unsigned int k =0 ;k<pointListOut.size();++k){
     p.x = pointListOut[k].first;
     p.y = pointListOut[k].second;

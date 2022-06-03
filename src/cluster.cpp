@@ -106,7 +106,7 @@ void Cluster::populateTrackingMsgs(const double& dt){
   // This function populates the datmo/Tracks msgs.
 
   vision_msgs::msg::ObjectHypothesisWithPose hypothesis;
-  hypothesis.id = static_cast<std::string>(this->id);
+  hypothesis.id = std::to_string(this->id);
   msg_track_box_kf.results.push_back(hypothesis);
   // msg_track_box_kf.header.stamp = rclcpp::Clock::now();
   msg_track_box_kf.header.frame_id = frame_name;

@@ -62,7 +62,7 @@ using namespace std;
 class Datmo : rclcpp::Node
 {
 public:
-  Datmo();
+  Datmo(const rclcpp::NodeOptions & options);
 
   void callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_in);
   void Clustering(const sensor_msgs::msg::LaserScan::ConstSharedPtr scan_in, vector<pointList> &);

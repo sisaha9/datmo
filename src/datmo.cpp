@@ -31,7 +31,7 @@
 
 #include "datmo/datmo.hpp"
 
-Datmo::Datmo() : Node("datmo_node")
+Datmo::Datmo(const rclcpp::NodeOptions & options) : Node("datmo_node", options)
 {
   RCLCPP_INFO(this->get_logger(), "Starting Detection And Tracking of Moving Objects");
 
